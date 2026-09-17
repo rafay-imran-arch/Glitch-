@@ -1,3 +1,4 @@
+
 <a id="readme-top"></a>
 
 <!-- SHIELDS -->
@@ -89,7 +90,7 @@ It required a lot of workarounds, but it was a pleasure to use it
 How to install and use this software? It's easy!
 
 ### Installation
-You can either download it from the [Godot Asset Library](https://godotengine.org/asset-library/asset/3484).
+You can either download it from asset lib (will provide a link, once it gets accepted)
 <br />Or you can manually install it, here's how to do it!
 1. Clone the repository
 	```sh
@@ -150,4 +151,3 @@ Distributed under the MIT License. See `LICENSE` for more information.
 [Ouch-shield]: https://img.shields.io/badge/Ouch!-tool-blue?label=Ouch!
 [Ouch-url]: https://github.com/ouch-org/ouch
 [time-screenshot]: https://cloud-l88kldf50-hack-club-bot.vercel.app/0image.png
->>>>>>> 62dc0a6 (stage 0 init)
