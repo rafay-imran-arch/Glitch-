@@ -1,12 +1,109 @@
-[gd_scene load_steps=68 format=3 uid="uid://djna3j446nar7"]
+[gd_scene load_steps=73 format=3 uid="uid://djna3j446nar7"]
 
 [ext_resource type="Texture2D" uid="uid://dl18tojg5cfin" path="res://sprites/2D Pixel Art Character Template - Platformer & Metroidvania/dash/dash.png" id="1_fjrip"]
 [ext_resource type="Texture2D" uid="uid://bll4ncgbdb6qk" path="res://sprites/2D Pixel Art Character Template - Platformer & Metroidvania/jump/jump.png" id="2_smehm"]
+[ext_resource type="Texture2D" uid="uid://vvg6m6wr0ta6" path="res://sprites/2D Pixel Art Character Template - Platformer & Metroidvania/jump/up.png" id="3_smehm"]
 [ext_resource type="Texture2D" uid="uid://mnpabkr5mtk5" path="res://sprites/2D Pixel Art Character Template - Platformer & Metroidvania/idle/idle.png" id="3_ur7pv"]
 [ext_resource type="Texture2D" uid="uid://c2andi4exm6n3" path="res://sprites/2D Pixel Art Character Template - Platformer & Metroidvania/ledge/ledge_climb.png" id="4_y4r1p"]
 [ext_resource type="Texture2D" uid="uid://b6leyspkwsoso" path="res://sprites/2D Pixel Art Character Template - Platformer & Metroidvania/sprint/sprint.png" id="5_d2wvv"]
 [ext_resource type="Texture2D" uid="uid://cc4ah14ugwd0l" path="res://sprites/2D Pixel Art Character Template - Platformer & Metroidvania/running/running.png" id="6_3v2ag"]
 [ext_resource type="Texture2D" uid="uid://djuf7xy0nc17j" path="res://sprites/2D Pixel Art Character Template - Platformer & Metroidvania/wall_slide/wall_slide.png" id="7_jej6c"]
+
+[sub_resource type="GDScript" id="GDScript_smehm"]
+script/source = "extends CharacterBody2D
+
+enum STATE {
+	FALL, 
+	FLOOR,
+	JUMP, 
+	DOUBLE_JUMP,
+	FLOAT,
+	LEDGE_CLIMB,
+	LEDGE_JUMP
+}
+
+const FALL_GRAVITY := 1500.0
+const FALL_VELOCITY := 500.0
+const WALK_VELOCITY := 200.0
+const JUMP_VELOCITY := -600.0
+const JUMP_DECELERATION := 1500.0
+const DOUBLE_JUMP_VELOCITY := -450.0
+
+
+@onready var animated_sprite_2d: AnimatedSprite2D = %AnimatedSprite2D
+@onready var coyote_timer: Timer = $CoyoteTimer
+
+var active_state := STATE.FALL
+var can_double_jump := false 
+
+func _ready() -> void:
+	switch_state(active_state)
+
+func _physics_process(delta: float) -> void:
+	process_state(delta)
+	move_and_slide() # Moves the CharacterBody2D using velocity
+
+## State specific things run once per next state
+func switch_state(to_state: STATE) -> void:
+	var previous_state := active_state
+	active_state = to_state
+	match active_state:
+		STATE.FALL:
+			animated_sprite_2d.play(\"fall\")
+			if previous_state == STATE.FLOOR:
+				coyote_timer.start()
+				
+		STATE.JUMP:
+			animated_sprite_2d.play(\"jump\")
+			velocity.y = JUMP_VELOCITY
+			coyote_timer.stop()
+
+
+
+
+
+func process_state(delta: float) -> void:
+	match active_state:
+		
+	## while falling
+		STATE.FALL:
+			velocity.y = move_toward(velocity.y, FALL_VELOCITY, FALL_GRAVITY * delta)
+			handle_movement()
+		
+			if is_on_floor():
+				switch_state(STATE.FLOOR)
+			elif Input.is_action_just_pressed(\"jump\") and coyote_timer.time_left > 0:
+				switch_state(STATE.JUMP)
+				
+				
+	## while on floor 
+		STATE.FLOOR:
+			if Input.get_axis(\"move_left\", \"move_right\"):
+				animated_sprite_2d.play(\"walk\")
+			else:
+				animated_sprite_2d.play(\"idle\")
+			handle_movement()
+		
+			if not is_on_floor():
+				switch_state(STATE.FALL) 
+			elif Input.is_action_just_pressed(\"jump\"):
+				switch_state(STATE.JUMP)
+	
+	## while jumping
+		STATE.JUMP:
+			velocity.y = move_toward(velocity.y, 0, JUMP_DECELERATION * delta)
+			handle_movement()
+			
+			if Input.is_action_just_released(\"jump\") or velocity.y >= 0:
+				velocity.y = 0
+				switch_state(STATE.FALL)
+
+func handle_movement() -> void:
+	var input_direction := signf(Input.get_axis(\"move_left\", \"move_right\"))
+	if input_direction:
+		animated_sprite_2d.flip_h = input_direction < 0
+	velocity.x = input_direction * WALK_VELOCITY
+"
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f1ej7"]
 atlas = ExtResource("1_fjrip")
@@ -44,6 +141,10 @@ region = Rect2(896, 0, 128, 80)
 atlas = ExtResource("1_fjrip")
 region = Rect2(1024, 0, 128, 80)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_d2wvv"]
+atlas = ExtResource("2_smehm")
+region = Rect2(1024, 0, 128, 80)
+
 [sub_resource type="AtlasTexture" id="AtlasTexture_4ni07"]
 atlas = ExtResource("2_smehm")
 region = Rect2(1280, 0, 128, 80)
@@ -55,6 +156,14 @@ region = Rect2(1152, 0, 128, 80)
 [sub_resource type="AtlasTexture" id="AtlasTexture_ke2ow"]
 atlas = ExtResource("2_smehm")
 region = Rect2(1024, 0, 128, 80)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ur7pv"]
+atlas = ExtResource("3_smehm")
+region = Rect2(0, 0, 128, 80)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_y4r1p"]
+atlas = ExtResource("3_smehm")
+region = Rect2(256, 0, 128, 80)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_ujl30"]
 atlas = ExtResource("3_ur7pv")
@@ -276,6 +385,14 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
+"texture": SubResource("AtlasTexture_d2wvv")
+}],
+"loop": true,
+"name": &"fall",
+"speed": 11.0
+}, {
+"frames": [{
+"duration": 1.0,
 "texture": SubResource("AtlasTexture_4ni07")
 }, {
 "duration": 1.0,
@@ -283,6 +400,12 @@ animations = [{
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_ke2ow")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ur7pv")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_y4r1p")
 }],
 "loop": true,
 "name": &"float",
@@ -462,18 +585,30 @@ animations = [{
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_qsb7e"]
 radius = 5.0
-height = 28.0
+height = 32.0
 
 [node name="Player" type="CharacterBody2D"]
-
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
-sprite_frames = SubResource("SpriteFrames_vau08")
-animation = &"float"
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-visible = false
-position = Vector2(0, 6)
-shape = SubResource("CapsuleShape2D_qsb7e")
+script = SubResource("GDScript_smehm")
 
 [node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(2, 2)
 position_smoothing_enabled = true
+drag_horizontal_enabled = true
+drag_vertical_enabled = true
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+unique_name_in_owner = true
+sprite_frames = SubResource("SpriteFrames_vau08")
+animation = &"jump"
+frame_progress = 0.014930527
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(1, 8)
+shape = SubResource("CapsuleShape2D_qsb7e")
+
+[node name="CameraOffset" type="Node" parent="."]
+
+[node name="CoyoteTimer" type="Timer" parent="."]
+process_callback = 0
+wait_time = 0.2
+one_shot = true
