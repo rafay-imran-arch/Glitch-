@@ -34,14 +34,12 @@ const DOUBLE_JUMP_VELOCITY := -450.0
 const FLOAT_GRAVITY := 200.0
 const FLOAT_VELOCITY := 100.0
 
-
 @onready var animated_sprite_2d: AnimatedSprite2D = %AnimatedSprite2D
 @onready var coyote_timer: Timer = $CoyoteTimer
 @onready var float_cooldown: Timer = %FloatCooldown
 @onready var collision_shape_2d: CollisionShape2D = %CollisionShape2D
 @onready var ledge_climb_ray_cast: RayCast2D = %LedgeClimbRayCast
 @onready var ledge_space_ray_cast: RayCast2D = %LedgeSpaceRayCast
-
 
 var active_state := STATE.FALL
 var can_double_jump := false 
@@ -53,7 +51,7 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	process_state(delta)
-	move_and_slide() # Moves the CharacterBody2D using velocity
+	move_and_slide()
 
 ## State specific things run once per next state
 func switch_state(to_state: STATE) -> void:
@@ -95,17 +93,18 @@ func switch_state(to_state: STATE) -> void:
 			can_double_jump = true
 
 
-
 func process_state(delta: float) -> void:
 	match active_state:
 		
-	## while falling
+		## while falling
 		STATE.FALL:
 			velocity.y = move_toward(velocity.y, FALL_VELOCITY, FALL_GRAVITY * delta)
 			handle_movement()
 		
 			if is_on_floor():
 				switch_state(STATE.FLOOR)
+			elif check_ledge_grab():
+				switch_state(STATE.LEDGE_CLIMB)
 			elif Input.is_action_just_pressed(\"jump\"):
 				if coyote_timer.time_left > 0:
 					switch_state(STATE.JUMP)
@@ -114,8 +113,7 @@ func process_state(delta: float) -> void:
 				else:
 					switch_state(STATE.FLOAT)
 				
-				
-	## while on floor 
+		## while on floor 
 		STATE.FLOOR:
 			if Input.get_axis(\"move_left\", \"move_right\"):
 				animated_sprite_2d.play(\"walk\")
@@ -128,33 +126,84 @@ func process_state(delta: float) -> void:
 			elif Input.is_action_just_pressed(\"jump\"):
 				switch_state(STATE.JUMP) 
 	
-	## while jumping
+		## while jumping
 		STATE.JUMP, STATE.DOUBLE_JUMP:
 			velocity.y = move_toward(velocity.y, 0, JUMP_DECELERATION * delta)
 			handle_movement()
 			
-			if Input.is_action_just_released(\"jump\") or velocity.y >= 0:
+			if check_ledge_grab():
+				switch_state(STATE.LEDGE_CLIMB)
+			elif Input.is_action_just_released(\"jump\") or velocity.y >= 0:
 				velocity.y = 0
 				switch_state(STATE.FALL)
 				
+		## while floating
 		STATE.FLOAT:
 			velocity.y = move_toward(velocity.y, FLOAT_VELOCITY, FLOAT_GRAVITY * delta)
 			handle_movement()
 		
 			if is_on_floor():
 				switch_state(STATE.FLOOR)
+			elif check_ledge_grab():
+				switch_state(STATE.LEDGE_CLIMB)
 			elif Input.is_action_just_released(\"jump\"):
 				float_cooldown.start()
 				switch_state(STATE.FALL)
 				
+		## while climbing ledge
+		STATE.LEDGE_CLIMB:
+			velocity = Vector2.ZERO
+			
+			if animated_sprite_2d.frame == animated_sprite_2d.sprite_frames.get_frame_count(\"ledge\") - 1:
+				var offset := ledge_climb_offset()
+				offset.x *= facing_direction
+				position += offset
+				switch_state(STATE.FLOOR)
+
+func check_ledge_grab() -> bool:
+	return is_input_toward_facing() and is_ledge() and is_space()
+
 func handle_movement() -> void:
 	var input_direction := signf(Input.get_axis(\"move_left\", \"move_right\"))
 	if input_direction:
 		animated_sprite_2d.flip_h = input_direction < 0
 		facing_direction = input_direction
+		
+		# Flip raycasts dynamically according to movement direction
 		ledge_climb_ray_cast.position.x = input_direction * absf(ledge_climb_ray_cast.position.x)
 		ledge_climb_ray_cast.target_position.x = input_direction * absf(ledge_climb_ray_cast.target_position.x)
+		ledge_climb_ray_cast.force_raycast_update()
+		
+		ledge_space_ray_cast.position.x = input_direction * absf(ledge_space_ray_cast.position.x)
+		ledge_space_ray_cast.force_raycast_update()
+		
 	velocity.x = input_direction * WALK_VELOCITY
+
+func is_input_toward_facing() -> bool:
+	return signf(Input.get_axis(\"move_left\", \"move_right\")) == facing_direction
+
+func is_ledge() -> bool:
+	if not ledge_climb_ray_cast.is_colliding():
+		return false
+		
+	var normal := ledge_climb_ray_cast.get_collision_normal()
+	# Checks if the surface normal is pointing predominantly UP (Y < -0.7)
+	# This accepts minor polygon edge variations from tile seams.
+	return normal.y < -0.7
+
+func is_space() -> bool:
+	# Position the space checker right at the detected ledge top
+	ledge_space_ray_cast.global_position = ledge_climb_ray_cast.get_collision_point() + Vector2(0, -5)
+	ledge_space_ray_cast.force_raycast_update()
+	return not ledge_space_ray_cast.is_colliding()
+
+func ledge_climb_offset() -> Vector2: 
+	var shape := collision_shape_2d.shape
+	if shape is CapsuleShape2D:
+		return Vector2(shape.radius * 2.0, -shape.height * 0.5)
+	if shape is RectangleShape2D: 
+		return Vector2(shape.size.x, -shape.size.y * 0.5)
+	return Vector2.ZERO
 "
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f1ej7"]
@@ -767,8 +816,6 @@ drag_vertical_enabled = true
 unique_name_in_owner = true
 sprite_frames = SubResource("SpriteFrames_vau08")
 animation = &"idle"
-frame = 4
-frame_progress = 0.8609518
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 unique_name_in_owner = true
@@ -791,10 +838,10 @@ one_shot = true
 
 [node name="LedgeClimbRayCast" type="RayCast2D" parent="."]
 unique_name_in_owner = true
-position = Vector2(-18, 23)
+position = Vector2(-13, 24)
 target_position = Vector2(0, -34)
 
 [node name="LedgeSpaceRayCast" type="RayCast2D" parent="."]
 unique_name_in_owner = true
-position = Vector2(0, -14)
-target_position = Vector2(12, 20)
+position = Vector2(1, -8)
+target_position = Vector2(9, 7)
